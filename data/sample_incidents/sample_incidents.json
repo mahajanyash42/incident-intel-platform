@@ -1,0 +1,282 @@
+[
+  {
+    "incident_id": "INC-101",
+    "title": "Checkout API returning 504s intermittently",
+    "description": "Checkout API returning 504 errors intermittently since 02:15 UTC. Error logs show 'context deadline exceeded' on payments-gateway service. Approximately 6% of requests affected during a 40 minute window. Restarted the connection pool on payments-gateway, symptoms resolved within 5 minutes. Root cause: pool exhaustion under sustained load from a marketing campaign traffic spike.",
+    "service": "payments-gateway",
+    "severity": "high",
+    "date": "2026-01-14"
+  },
+  {
+    "incident_id": "INC-102",
+    "title": "prod checkout down, investigating",
+    "description": "checkout down. getting 504s across the board. paging payments team. will update.",
+    "service": "payments-gateway",
+    "severity": "critical",
+    "date": "2026-02-03"
+  },
+  {
+    "incident_id": "INC-103",
+    "title": "Payments-gateway timeout recurrence - 3rd in 3 months",
+    "description": "Third occurrence of payments-gateway 'context deadline exceeded' errors, same signature as INC-101 and INC-102. Pool restart mitigated again but recurrence pattern suggests underlying capacity issue rather than transient load spikes. Flagged for architecture review - connection pool sizing likely needs to scale with traffic tier, not stay fixed.",
+    "service": "payments-gateway",
+    "severity": "high",
+    "date": "2026-04-02"
+  },
+  {
+    "incident_id": "INC-104",
+    "title": "auth-service pods restarting every 2-3 hours",
+    "description": "auth-service pods have been restarting every 2-3 hours since last Tuesday's deploy, OOMKilled events in kubectl logs. Memory usage climbs steadily post-deploy rather than plateauing. Investigation traced it to unbounded growth in an in-memory session cache introduced in the last release. Fix: added TTL-based eviction policy to the cache, deployed as hotfix. Monitoring for 48 hours before closing.",
+    "service": "auth-service",
+    "severity": "medium",
+    "date": "2026-01-22"
+  },
+  {
+    "incident_id": "INC-105",
+    "title": "Login failures spiking",
+    "description": "Users unable to log in, seeing 'session expired' errors immediately after successful auth. Started ~20 min after auth-service deploy. Suspect the new session cache change from INC-104 wasn't fully reverted in one region. Rolling back auth-service to previous version in us-west-2.",
+    "service": "auth-service",
+    "severity": "critical",
+    "date": "2026-02-11"
+  },
+  {
+    "incident_id": "INC-106",
+    "title": "Search returning stale results after catalog update",
+    "description": "Product search showing outdated prices and discontinued items up to 45 minutes after catalog updates. Root cause: cache invalidation on search-service isn't triggered by the catalog update webhook when updates arrive in batches larger than 500 items - batch handler silently skips invalidation. Manual cache flush applied. Permanent fix: patch batch handler to always trigger invalidation regardless of batch size, tracked for next sprint.",
+    "service": "search-service",
+    "severity": "medium",
+    "date": "2026-03-05"
+  },
+  {
+    "incident_id": "INC-107",
+    "title": "search slow, users complaining",
+    "description": "several complaints that search is slow, 3-5s response times instead of usual <500ms. not sure of root cause yet. search-service CPU looks normal. checking search-service dependent DB queries next.",
+    "service": "search-service",
+    "severity": "medium",
+    "date": "2026-04-18"
+  },
+  {
+    "incident_id": "INC-108",
+    "title": "Search latency root cause: unindexed query path",
+    "description": "Follow-up to INC-107. Root cause identified: a recent filter feature added a query path that wasn't covered by existing indexes, causing full collection scans on search-service's backing store during peak traffic. Added missing compound index, latency returned to baseline within 10 minutes of index build completing.",
+    "service": "search-service",
+    "severity": "medium",
+    "date": "2026-04-19"
+  },
+  {
+    "incident_id": "INC-109",
+    "title": "Email notifications not sending",
+    "description": "Transactional emails (password reset, order confirmation) not being delivered since approximately 09:00 UTC. notification-service logs show repeated 401 errors calling the third-party email provider's API. Provider's status page confirms an ongoing incident on their end affecting API auth tokens. No action needed on our side - provider resolved within 90 minutes. Added a fallback provider integration to backlog to reduce single point of failure.",
+    "service": "notification-service",
+    "severity": "high",
+    "date": "2026-02-27"
+  },
+  {
+    "incident_id": "INC-110",
+    "title": "Push notifications delayed by up to 20 minutes",
+    "description": "Push notification delivery delayed 10-20 minutes during evening peak hours over the past 3 days. notification-service queue depth graphs show backlog building during peak and draining overnight. Suspect worker count is undersized for current send volume. Mitigated by temporarily doubling worker replica count. RCA pending - need proper autoscaling policy rather than manual scaling.",
+    "service": "notification-service",
+    "severity": "medium",
+    "date": "2026-05-08"
+  },
+  {
+    "incident_id": "INC-111",
+    "title": "API gateway rate limiting legitimate traffic",
+    "description": "Several enterprise customers reporting 429 (rate limited) errors on API calls well below their contracted rate limit. Investigation found api-gateway's rate limiter was applying limits per-pod rather than per-customer-aggregated-across-pods, so customers hitting different pods got throttled prematurely. Fix: moved rate limit counters to shared Redis store so limits are enforced correctly across the gateway fleet.",
+    "service": "api-gateway",
+    "severity": "high",
+    "date": "2026-03-21"
+  },
+  {
+    "incident_id": "INC-112",
+    "title": "api gateway 502s after deploy",
+    "description": "502 errors across multiple endpoints right after 14:00 deploy. rolled back immediately. seems related to a config change in the routing rules but havent confirmed exact line yet. will follow up with proper RCA tomorrow.",
+    "service": "api-gateway",
+    "severity": "critical",
+    "date": "2026-01-30"
+  },
+  {
+    "incident_id": "INC-113",
+    "title": "API gateway config rollback RCA",
+    "description": "Follow-up to INC-112. Root cause: a routing config change removed a default upstream fallback rule that several legacy endpoints depended on implicitly. Because it wasn't covered by integration tests, the break wasn't caught pre-deploy. Fix deployed with the fallback rule restored, plus a new integration test added covering legacy endpoint routing specifically.",
+    "service": "api-gateway",
+    "severity": "critical",
+    "date": "2026-01-31"
+  },
+  {
+    "incident_id": "INC-114",
+    "title": "Database cluster connection saturation during nightly batch job",
+    "description": "database-cluster hit max connection limit at 02:00 UTC during the nightly analytics batch job, causing brief write failures across dependent services (payments-gateway, auth-service) for about 8 minutes. Batch job was opening a new connection per record instead of using a connection pool. Fixed batch job to use pooled connections, tested in staging, deployed for next run.",
+    "service": "database-cluster",
+    "severity": "high",
+    "date": "2026-02-16"
+  },
+  {
+    "incident_id": "INC-115",
+    "title": "DB cluster disk usage at 92%",
+    "description": "Alert fired for database-cluster primary node disk usage crossing 90% threshold. Growth traced to un-rotated old write-ahead logs after a recent backup config change disabled automatic log cleanup. Manually cleared old WAL files to bring usage back to 61%, re-enabled automatic cleanup job, added a dashboard panel to track this going forward.",
+    "service": "database-cluster",
+    "severity": "medium",
+    "date": "2026-03-30"
+  },
+  {
+    "incident_id": "INC-116",
+    "title": "SSL certificate expired on payments-gateway public endpoint",
+    "description": "External payment webhook calls to payments-gateway started failing with SSL handshake errors at 00:00 UTC. Cause: TLS certificate for the public webhook endpoint expired and auto-renewal job had been silently failing for 2 weeks due to an expired renewal service account token. Manually renewed cert, rotated the service account token, added expiry monitoring alert 14 days out instead of relying solely on auto-renewal.",
+    "service": "payments-gateway",
+    "severity": "critical",
+    "date": "2026-04-11"
+  },
+  {
+    "incident_id": "INC-117",
+    "title": "race condition causing duplicate charges",
+    "description": "Small number of customers (est. 40) charged twice for the same order. Root cause: a race condition in payments-gateway's order confirmation handler where near-simultaneous webhook retries from the payment processor weren't deduplicated by idempotency key correctly under high concurrency. Fixed by adding a database-level unique constraint on (order_id, processor_event_id). Refunds issued to affected customers. Marked as critical due to financial/customer trust impact.",
+    "service": "payments-gateway",
+    "severity": "critical",
+    "date": "2026-05-19"
+  },
+  {
+    "incident_id": "INC-118",
+    "title": "notification-service crash loop after dependency upgrade",
+    "description": "notification-service failed to start after a routine dependency version bump, crash looping with a serialization error on startup. Root cause: the upgraded messaging library changed its default message schema version, incompatible with messages already queued from before the deploy. Rolled back the deploy, drained the incompatible queue manually, re-deployed with a schema migration step added to the deploy process for future upgrades.",
+    "service": "notification-service",
+    "severity": "high",
+    "date": "2026-02-08"
+  },
+  {
+    "incident_id": "INC-119",
+    "title": "search-service degraded, RCA unclear",
+    "description": "search-service response times elevated (1.5-2s vs 400ms baseline) for about 3 hours this afternoon. No corresponding deploy, no obvious resource saturation on CPU/memory/disk. Restarted service instances as mitigation, latency returned to normal. Root cause not conclusively identified - suspect a noisy-neighbor issue on shared infra but couldn't confirm from available metrics. Leaving open for further investigation if it recurs.",
+    "service": "search-service",
+    "severity": "medium",
+    "date": "2026-05-27"
+  },
+  {
+    "incident_id": "INC-120",
+    "title": "auth token validation failing for subset of users",
+    "description": "A subset of users (roughly those with accounts created before a 2025 migration) failing token validation with 'invalid signature' errors. Root cause: auth-service was validating against only the current signing key, but legacy tokens for pre-migration accounts were signed with a key that had been rotated out and removed from the validation keyset. Restored the old public key to the validation keyset with an extended grace period, scheduled forced re-auth for affected accounts over 30 days.",
+    "service": "auth-service",
+    "severity": "high",
+    "date": "2026-03-12"
+  },
+  {
+    "incident_id": "INC-121",
+    "title": "api-gateway 502",
+    "description": "brief 502 spike ~2 min, self resolved. checked logs, looks like a single upstream pod became unhealthy and was removed from rotation by health checks as expected. no action needed, noting for pattern tracking.",
+    "service": "api-gateway",
+    "severity": "low",
+    "date": "2026-01-09"
+  },
+  {
+    "incident_id": "INC-122",
+    "title": "database-cluster replication lag alert",
+    "description": "Replica lag on database-cluster crossed 30 second threshold during a large data backfill job run against the primary. Lag is expected under sustained heavy write load; alert threshold may need tuning to distinguish expected backfill lag from genuine replication problems. Backfill completed, lag recovered to <1s within 10 minutes. No customer impact observed. Recommend adding a maintenance-window suppression for planned backfills.",
+    "service": "database-cluster",
+    "severity": "low",
+    "date": "2026-04-25"
+  },
+  {
+    "incident_id": "INC-123",
+    "title": "notification-service SMS delivery failures in EU region",
+    "description": "SMS notifications failing to deliver for EU-region customers only, US unaffected. Traced to a regional SMS provider contract change that altered the required sender ID format for EU numbers without prior notice. Updated notification-service config with corrected sender ID format for the EU provider integration. Delivery confirmed restored via test sends.",
+    "service": "notification-service",
+    "severity": "medium",
+    "date": "2026-05-02"
+  },
+  {
+    "incident_id": "INC-124",
+    "title": "checkout errors after third-party fraud check outage",
+    "description": "Checkout failures spiking with 'unable to verify transaction' errors. payments-gateway depends on a third-party fraud detection API which is currently returning 503s per their status page. Implemented a temporary fail-open policy for low-value transactions (<$50) with manual review queued, to reduce customer impact while waiting on provider recovery. Provider resolved after approximately 70 minutes.",
+    "service": "payments-gateway",
+    "severity": "high",
+    "date": "2026-02-19"
+  },
+  {
+    "incident_id": "INC-125",
+    "title": "search-service memory usage climbing since last deploy",
+    "description": "Gradual memory growth on search-service instances since Tuesday's deploy, not yet critical but trending toward OOM within ~36 hours at current rate if unaddressed. Suspect a new query-caching feature introduced in the release isn't respecting its configured max cache size. Rolling restart applied as stopgap, engineering investigating the caching logic before it becomes a production incident.",
+    "service": "search-service",
+    "severity": "medium",
+    "date": "2026-05-14"
+  },
+  {
+    "incident_id": "INC-126",
+    "title": "auth-service brief outage during planned maintenance window overran",
+    "description": "Scheduled auth-service maintenance (key rotation) intended to take 5 minutes overran to 22 minutes due to an unexpected migration script issue, causing login unavailability during that window. Users unable to log in but existing sessions unaffected. Migration script fixed, maintenance completed successfully after restart. Post-incident: maintenance runbook updated with a rollback step for this migration script failure mode.",
+    "service": "auth-service",
+    "severity": "high",
+    "date": "2026-04-07"
+  },
+  {
+    "incident_id": "INC-127",
+    "title": "api-gateway timeout errors during regional failover test",
+    "description": "During a planned DR failover test, api-gateway showed elevated timeout rates (approx 4%) routing to the standby region, higher than the <1% target. Root cause: DNS TTL for the failover endpoint was set too high (300s), causing some clients to continue resolving to the unhealthy primary during the cutover window. Reduced TTL to 30s, re-tested failover with timeout rate down to 0.3%.",
+    "service": "api-gateway",
+    "severity": "medium",
+    "date": "2026-05-23"
+  },
+  {
+    "incident_id": "INC-128",
+    "title": "payments-gateway webhook retries flooding logs",
+    "description": "Noticed payments-gateway logs flooded with repeated webhook retry attempts for a small set of orders stuck in a failed state, generating noise but no actual customer impact. Root cause: retry backoff logic wasn't capping max retry count, so failed webhooks retried indefinitely every 30s. Added max retry cap (10 attempts) with dead-letter queue for anything exceeding it. Not customer-facing, but was masking real signal in logs.",
+    "service": "payments-gateway",
+    "severity": "low",
+    "date": "2026-03-17"
+  },
+  {
+    "incident_id": "INC-129",
+    "title": "database migration locked production table for 12 minutes",
+    "description": "A schema migration run during a deploy window took an unexpectedly long table lock on database-cluster, causing write timeouts for auth-service and payments-gateway for approximately 12 minutes. Migration should have used an online/non-blocking schema change tool but was run as a direct ALTER TABLE. Migration completed, no data loss, but caused a visible availability dip. Updated deploy checklist to require online migration tooling for any table over a certain row-count threshold.",
+    "service": "database-cluster",
+    "severity": "high",
+    "date": "2026-01-26"
+  },
+  {
+    "incident_id": "INC-130",
+    "title": "search results missing newly added products",
+    "description": "Newly published products not appearing in search for up to 2 hours after publish, though they were visible on the product page directly. search-service's indexing pipeline had a backlog due to an upstream Kafka consumer group rebalance loop that kept resetting offsets. Fixed by pinning consumer group assignment strategy, indexing lag returned to near-real-time (under 1 minute) after fix deployed.",
+    "service": "search-service",
+    "severity": "medium",
+    "date": "2026-04-29"
+  },
+  {
+    "incident_id": "INC-131",
+    "title": "notification-service, minor - test messages leaked to prod",
+    "description": "A handful of internal test notifications were accidentally sent to real users (approx 15) due to a staging config value not being overridden correctly in one deploy pipeline stage. Apologized to affected users, fixed the config override, added a pre-send environment check as a safeguard. Low severity given small blast radius, but flagged as a process gap worth addressing.",
+    "service": "notification-service",
+    "severity": "low",
+    "date": "2026-02-24"
+  },
+  {
+    "incident_id": "INC-132",
+    "title": "auth-service, unclear intermittent 500s, monitoring",
+    "description": "Sporadic 500 errors on auth-service login endpoint, roughly 0.1% of requests, no clear pattern by time, region, or user segment so far. Not currently severe enough to page on, but tracking for trend. Added additional structured logging around the failure path to gather more diagnostic detail if it recurs or increases in frequency.",
+    "service": "auth-service",
+    "severity": "low",
+    "date": "2026-05-30"
+  },
+  {
+    "incident_id": "INC-133",
+    "title": "api-gateway - increased 429s traced to bot traffic",
+    "description": "Spike in 429 rate-limit responses from api-gateway traced to a surge in automated scraping traffic hitting public product endpoints, not legitimate customer traffic. Added bot-detection rule to the WAF layer in front of api-gateway to filter this traffic pattern before it reaches rate limiting. 429 rate for legitimate traffic returned to baseline.",
+    "service": "api-gateway",
+    "severity": "medium",
+    "date": "2026-03-09"
+  },
+  {
+    "incident_id": "INC-134",
+    "title": "database-cluster - failover triggered unexpectedly",
+    "description": "Automatic failover from primary to secondary triggered on database-cluster at 03:41 UTC without an obvious cause; health checks showed primary as unresponsive for ~15 seconds, likely a transient network blip rather than a real node failure. Failover completed cleanly with under 30 seconds of write unavailability. No data inconsistency found on review. Investigating whether health check sensitivity should be tuned to avoid failovers on brief transient blips.",
+    "service": "database-cluster",
+    "severity": "medium",
+    "date": "2026-04-15"
+  },
+  {
+    "incident_id": "INC-135",
+    "title": "payments-gateway currency conversion mismatch",
+    "description": "Small number of international orders (est. 12) charged in the wrong currency due to a stale exchange rate cache in payments-gateway that hadn't refreshed after the scheduled rate update job silently failed for 3 days. Refunded/adjusted affected orders manually, fixed the rate update job's failure alerting (it had no alert on job failure, only on job absence entirely), and added a rate freshness check at charge time as a safeguard.",
+    "service": "payments-gateway",
+    "severity": "high",
+    "date": "2026-05-06"
+  }
+]
