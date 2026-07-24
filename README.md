@@ -4,8 +4,6 @@ An AI agent that ingests incident tickets, technical runbooks (PDFs), and error 
 then uses RAG + a LangGraph agent to produce cited, evidence-backed root-cause analysis and
 remediation recommendations for SRE/DevOps incidents.
 
-Built for [Course Name] under Professor Bharti Motwani.
-
 ## What it does
 
 An on-call engineer describes an incident (optionally attaching a screenshot of an error). The
