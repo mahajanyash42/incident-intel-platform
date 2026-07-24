@@ -76,7 +76,7 @@ def run_agent(incident_description: str) -> str:
 
 
 if __name__ == "__main__":
-    test_incident = "Checkout API returning 504 errors, users unable to complete payment. Started about 10 minutes ago."
+    test_incident = "Employee complained that the office WiFi password was changed without notice"
 
     print(f"Incident: {test_incident}\n")
     print("Running agent...\n")
